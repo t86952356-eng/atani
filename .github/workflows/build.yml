@@ -29,6 +29,9 @@ jobs:
       - name: Build JAR with Shadow
         run: ./gradlew shadowJar
 
+      - name: Slim JAR for FCL (remove classpath-shadowed libs, lossless recompress)
+        run: python tools/fcl_slim.py build/libs/atani-client-1.8.9-all.jar
+
       - uses: "marvinpinto/action-automatic-releases@latest"
         name: "Create release"
         if: ${{ github.event.repository.default_branch == github.ref_name && github.event.pull_request == null }}

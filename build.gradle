@@ -19,13 +19,31 @@ repositories {
 
 dependencies {
     implementation "com.github.Vatuu:discord-rpc:1.6.2"
-    implementation "fr.litarvan:openauth:1.1.3"
+    // openauth يجرّ تباعياً كل OpenJFX 11 (base/graphics/controls/media/swing/web
+    // ≈ 12.5MB+ داخل الجار) لأجل LoginFrame — واجهة JavaFX اختيارية لا
+    // يستخدمها Atani إطلاقاً (تحقق: import fr.litarvan في السورس =
+    // MicrosoftAuthenticator/Result/Exception فقط، ولا مرجع javafx في
+    // المشروع كله). نستبعدها.
+    implementation("fr.litarvan:openauth:1.1.3") {
+        exclude group: "org.openjfx"
+    }
     implementation "javax.vecmath:vecmath:1.5.2"
     implementation "org.reflections:reflections:0.10.2"
     // reflections 0.10.2's pom في المستودع المستخدم هو stub بلا تبعيات،
     // لذلك يجب التصريح عنها يدوياً وإلا انهار العميل بـ NoClassDefFoundError
     implementation "org.slf4j:slf4j-api:2.0.16"
-    implementation "org.apache.logging.log4j:log4j-slf4j2-impl:2.25.1"
+    // إصلاح كراش FCL: كان هنا log4j-slf4j2-impl 2.25.1 مع log4j-api/core
+    // 2.25.1 مدمجة داخل الجار. على FCL تُوضع مكتبات 1.8.9 الفانيلا
+    // (log4j 2.0-beta9) على الـ classpath قبل جار العميل، فتفوز النسخة
+    // القديمة، ويستدعي الجسر الحديث MethodRef غير موجودة:
+    // NoSuchMethodError LoggerContextFactory.isClassLoaderDependent()
+    // عند Reflections.<clinit> ← كراش عند شعار موجانغ.
+    // الحل: slf4j-simple كمزوّد مستقل يكتب إلى stderr ولا يلمس log4j
+    // إطلاقاً، فيعمل بأي ترتيب classpath.
+    implementation "org.slf4j:slf4j-simple:2.0.16"
+    // يُجمَّع ضد log4j-api 2.0-beta9 (نفس نسخة الـ classpath على FCL)
+    // لضمان عدم استخدام أي API أحدث، ولا يُدمج داخل الجار (compileOnly).
+    compileOnly "org.apache.logging.log4j:log4j-api:2.0-beta9"
     implementation "org.javassist:javassist:3.28.0-GA"
     implementation "de.florianmichael:RClasses:1.2.4"
     implementation "io.netty:netty-all:4.1.111.Final"
@@ -44,9 +62,6 @@ dependencies {
     implementation "commons-logging:commons-logging:1.1.3"
     implementation "org.apache.commons:commons-compress:1.8.1"
 
-    implementation "org.apache.logging.log4j:log4j-api:2.25.1"
-    implementation "org.apache.logging.log4j:log4j-core:2.25.1"
-
     implementation "tv.twitch:twitch:6.5"
     implementation "com.google.guava:guava:17.0"
     implementation "org.apache.commons:commons-lang3:3.3.2"
@@ -60,7 +75,8 @@ dependencies {
     implementation "com.paulscode.sound:librarylwjglopenal:20100824"
     implementation "com.mojang:realmsclient:1.7.59"
     implementation "com.mojang:authlib:1.5.21"
-    implementation "org.openjfx:javafx-graphics:18"
+    // javafx-graphics محذوف: لا يوجد أي مرجع لـ javafx في السورس كله
+    // (تحقق: grep -r javafx src/ == 0) وكان يضيف ~23MB ميتة للجار.
     implementation "org.yaml:snakeyaml:2.0"
 
     // ViaVersion - libs specifically tweaked to work with ViaMCP,
@@ -81,10 +97,8 @@ tasks {
     shadowJar {
         manifest {
             attributes["Main-Class"] = "net.minecraft.client.main.Main"
-            // مطلوب: التبعيات (log4j, snakeyaml) هي Multi-Release JARs.
-            // بدون هذه الخاصية يتجاهل JVM فئات META-INF/versions/9 ويحمّل
-            // نسخ Java 8 المعطلة على Java 9+، ما يسبب كراش:
-            // UnsupportedOperationException in LogManager.getCallerClass
+            // مطلوب: snakeyaml تبعية Multi-Release JAR. بدون هذه الخاصية
+            // يتجاهل JVM فئات META-INF/versions/9 ويحمّل النسخ الأساسية.
             attributes["Multi-Release"] = "true"
         }
     }
